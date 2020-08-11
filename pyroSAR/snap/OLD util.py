@@ -1,6 +1,6 @@
 ####################################################################
 # Convenience functions for SAR image batch processing with ESA SNAP
-# John Truckenbrodt, 2016-2020
+# John Truckenbrodt, 2016-2019
 ####################################################################
 import os
 import pyroSAR
@@ -15,7 +15,7 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
             removeS1ThermalNoise=True, offset=None,
             externalDEMFile=None, externalDEMNoDataValue=None, externalDEMApplyEGM=True, terrainFlattening=True,
             basename_extensions=None, test=False, export_extra=None, groupsize=1, cleanup=True,
-            gpt_exceptions=None, gpt_args=None, returnWF=False, nodataValueAtSea=True,
+            gpt_exceptions=None, gpt_args=None, returnWF=False,
             demResamplingMethod='BILINEAR_INTERPOLATION', imgResamplingMethod='BILINEAR_INTERPOLATION',
             speckleFilter=False, refarea='gamma0'):
     """
@@ -89,8 +89,6 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
         - e.g. ``['-x', '-c', '2048M']`` for increased tile cache size and intermediate clearing
     returnWF: bool
         return the full name of the written workflow XML file?
-    nodataValueAtSea: bool
-        mask pixels acquired over sea? The sea mask depends on the selected DEM.
     demResamplingMethod: str
         one of the following:
          - 'NEAREST_NEIGHBOUR'
@@ -198,8 +196,7 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
     else:
         raise RuntimeError('polarizations must be of type str or list')
     
-#    format = 'GeoTiff-BigTIFF' if len(polarizations) == 1 and export_extra is None else 'ENVI'
-    format = 'NetCDF4-BEAM'                                                                            ### DRB ADDED
+    format = 'GeoTiff-BigTIFF' if len(polarizations) == 1 and export_extra is None else 'ENVI'
     # print(polarizations)
     # print(format)
     
@@ -245,7 +242,7 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
     if id.sensor in ['S1A', 'S1B'] and removeS1ThermalNoise:
         for reader in readers:
             tn = parse_node('ThermalNoiseRemoval')
-            workflow.insert_node(tn, before=reader)                           ## DRB REMOVED
+            workflow.insert_node(tn, before=reader)
             tn.parameters['selectedPolarisations'] = polarizations
     ############################################
     # orbit file application node configuration
@@ -280,7 +277,7 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
     # print('-- configuring Terrain-Flattening Node')
     if terrainFlattening:
         tf = parse_node('Terrain-Flattening')
-#        workflow.insert_node(tf, before=last)                                     ## DRB REMOVED
+        workflow.insert_node(tf, before=last)
         if id.sensor in ['ERS1', 'ERS2'] or (id.sensor == 'ASAR' and id.acquisition_mode != 'APP'):
             tf.parameters['sourceBands'] = 'Beta0'
         else:
@@ -289,7 +286,7 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
             tf.parameters['reGridMethod'] = True
         else:
             tf.parameters['reGridMethod'] = False
-#        last = tf.id                                     ## DRB REMOVED
+        last = tf.id
     ############################################
     # speckle filtering node configuration
     speckleFilter_options = ['Boxcar',
@@ -305,26 +302,26 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
         if speckleFilter not in speckleFilter_options:
             raise ValueError(message.format('speckleFilter', '\n- '.join(speckleFilter_options)))
         sf = parse_node('Speckle-Filter')
-#        workflow.insert_node(sf, before=last)                                     ## DRB REMOVED
+        workflow.insert_node(sf, before=last)
         sf.parameters['sourceBands'] = bandnames[refarea]
         sf.parameters['filter'] = speckleFilter
-#        last = sf.id                                     ## DRB REMOVED
+        last = sf.id
     ############################################
     # configuration of node sequence for specific geocoding approaches
     # print('-- configuring geocoding approach Nodes')
     if geocoding_type == 'Range-Doppler':
         tc = parse_node('Terrain-Correction')
-#        workflow.insert_node(tc, before=last)                                     ## DRB REMOVED
+        workflow.insert_node(tc, before=last)
         tc.parameters['sourceBands'] = bandnames[refarea]
     elif geocoding_type == 'SAR simulation cross correlation':
         sarsim = parse_node('SAR-Simulation')
-#        workflow.insert_node(sarsim, before=last)                                     ## DRB REMOVED
+        workflow.insert_node(sarsim, before=last)
         sarsim.parameters['sourceBands'] = bandnames[refarea]
         
-#        workflow.insert_node(parse_node('Cross-Correlation'), before='SAR-Simulation')                                     ## DRB REMOVED
+        workflow.insert_node(parse_node('Cross-Correlation'), before='SAR-Simulation')
         
         tc = parse_node('SARSim-Terrain-Correction')
-#        workflow.insert_node(tc, before='Cross-Correlation')                                     ## DRB REMOVED
+        workflow.insert_node(tc, before='Cross-Correlation')
     else:
         raise RuntimeError('geocode_type not recognized')
     
@@ -344,12 +341,12 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
                                     geometry=image_geometry,
                                     incidence=incidence)
     
-#    if azlks > 1 or rlks > 1:                                     ## DRB REMOVED
-#        workflow.insert_node(parse_node('Multilook'), before='Calibration')
-#        ml = workflow['Multilook']
-#        ml.parameters['nAzLooks'] = azlks
-#        ml.parameters['nRgLooks'] = rlks
-#        ml.parameters['sourceBands'] = None
+    if azlks > 1 or rlks > 1:
+        workflow.insert_node(parse_node('Multilook'), before='Calibration')
+        ml = workflow['Multilook']
+        ml.parameters['nAzLooks'] = azlks
+        ml.parameters['nRgLooks'] = rlks
+        ml.parameters['sourceBands'] = None
         # if cal.parameters['outputBetaBand']:
         #     ml.parameters['sourceBands'] = bandnames['beta0']
         # elif cal.parameters['outputGammaBand']:
@@ -388,8 +385,7 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
     
     if scaling in ['dB', 'db']:
         lin2db = parse_node('lin2db')
-#        workflow.insert_node(lin2db, before=tc.id)                                     ## DRB REMOVED
-#        workflow.insert_node(lin2db, before=last)
+        workflow.insert_node(lin2db, before=tc.id)
         lin2db.parameters['sourceBands'] = bandnames[refarea]
     
     ############################################
@@ -523,11 +519,6 @@ def geocode(infile, outdir, t_srs=4326, tr=20, polarizations='all', shapefile=No
     
     workflow.set_par('demResamplingMethod', demResamplingMethod)
     workflow.set_par('imgResamplingMethod', imgResamplingMethod)
-    ############################################
-    ############################################
-    # additional parameter settings applied to the whole workflow
-    
-    workflow.set_par('nodataValueAtSea', nodataValueAtSea)
     ############################################
     ############################################
     # write workflow to file and optionally execute it

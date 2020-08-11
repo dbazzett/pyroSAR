@@ -91,6 +91,7 @@ class Storage(dict):
 snap_suffix = {'Apply-Orbit-File': 'Orb',
                'Calibration': 'Cal',
                'Cross-Correlation': '',
+               'Land-Sea-Mask': 'LSM',
                'LinearToFromdB': 'dB',
                'Multilook': 'ML',
                'Read': '',
